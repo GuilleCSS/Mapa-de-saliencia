@@ -26,19 +26,16 @@ def capturar_imagen():
     cv2.destroyAllWindows()
     return imagen
 
-
-
-def redimensionar_imagen(imagen):
-    escalas = [imagen,
-               cv2.resize(imagen, (imagen.shape[1] // 2, imagen.shape[0] // 2)),
-               cv2.resize(imagen, (imagen.shape[1] // 4, imagen.shape[0] // 4)),
-               cv2.resize(imagen, (imagen.shape[1] // 8, imagen.shape[0] // 8))]
+def redimensionar_manual(img, factor):
+    filas, columnas = img.shape
+    new_filas, new_columnas = filas // factor, columnas // factor
+    img_reducida = np.zeros((new_filas, new_columnas), dtype=img.dtype)
     
-    # Ajustamos todas las escalas al tamaño de la menor imagen
-    min_height = min([escala.shape[0] for escala in escalas])
-    min_width = min([escala.shape[1] for escala in escalas])
-    escalas = [cv2.resize(escala, (min_width, min_height)) for escala in escalas]
-    return escalas
+    for i in range(new_filas):
+        for j in range(new_columnas):
+            img_reducida[i, j] = img[i * factor, j * factor]
+    
+    return img_reducida
 
 def visualizar_escalas(escalas):
     plt.figure(figsize=(10,5))
@@ -50,12 +47,12 @@ def visualizar_escalas(escalas):
         plt.axis('off')
     plt.show()
 
-"""
+
 def calcular_mapa_intensidad(escalas):
     mapas = [np.mean(escala, axis=2) / 255.0 for escala in escalas]
     mapa_final = sum(mapas) / len(mapas)
     return mapa_final
-"""
+
 
 def calcular_mapa_color(escalas):
     mapas_color = []
@@ -113,7 +110,7 @@ def calcular_mapa_color(escalas):
 
 
 
-"""
+
 def calcular_mapa_orientacion(escalas):
     kernel_size = 31
     sigmas = [3, 5, 7]
@@ -130,16 +127,14 @@ def calcular_mapa_orientacion(escalas):
     
     mapa_final = sum(mapas) / len(mapas)
     return mapa_final
-"""
 
-"""
+
+
 def calcular_mapa_saliencia(mapa_intensidad, mapa_color, mapa_orientacion):
     mapa_final = (mapa_intensidad + mapa_color + mapa_orientacion) 
     return mapa_final
-"""
 
 
-"""
 def visualizar_mapas(mapas, titulos):
     plt.figure(figsize=(10, 5))
     for i, (mapa, titulo) in enumerate(zip(mapas, titulos)):
@@ -148,11 +143,12 @@ def visualizar_mapas(mapas, titulos):
         plt.title(titulo)
         plt.axis('off')
     plt.show()
-"""
 
+"""""
 if __name__ == "__main__":
     imagen=capturar_imagen()
     if imagen is not None:
         escalas=redimensionar_imagen(imagen)
         visualizar_escalas(escalas)
         mapas_color=calcular_mapa_color(escalas)
+"""
