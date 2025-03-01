@@ -27,31 +27,60 @@ def capturar_imagen():
     return imagen
 
 def redimensionar_manual(img, factor):
-    filas, columnas = img.shape
-    new_filas, new_columnas = filas // factor, columnas // factor
-    img_reducida = np.zeros((new_filas, new_columnas), dtype=img.dtype)
+    filas, columnas = img.shape[:2]  # Obtener las dimensiones originales
+    new_filas, new_columnas = filas // factor, columnas // factor  # Calcular las nuevas dimensiones
     
+    # Crear una nueva imagen de las dimensiones reducidas
+    img_reducida = np.zeros((new_filas, new_columnas, img.shape[2]), dtype=img.dtype)
+    
+    # Realizar el escalamiento tomando píxeles con el factor de submuestreo
     for i in range(new_filas):
         for j in range(new_columnas):
+            # Tomar los píxeles correspondientes con el factor de escala
             img_reducida[i, j] = img[i * factor, j * factor]
     
     return img_reducida
 
-def visualizar_escalas(escalas):
-    plt.figure(figsize=(10,5))
-    titulos=["Original","1/2","1/4","1/8"]
-    for i,(escala, titulo) in enumerate(zip(escalas,titulos)):
-        plt.subplot(1,4,i+1)
-        plt.imshow(escala)
-        plt.title(titulo)
-        plt.axis('off')
-    plt.show()
+def generar_escalas(imagen):
+    escalas = [imagen]
+    factores = [2, 4, 8]
+    for factor in factores:
+        escalas.append(redimensionar_manual(imagen, factor))
+    return escalas
 
 
 def calcular_mapa_intensidad(escalas):
-    mapas = [np.mean(escala, axis=2) / 255.0 for escala in escalas]
+    mapas = []
+    
+    # Redimensionar todos los mapas de intensidad al tamaño de la imagen original
+    altura, anchura = escalas[0].shape[:2]  # Tomamos el tamaño de la imagen original
+    
+    for escala in escalas:
+        # Convertir a flotante para evitar problemas en la división
+        escala = escala.astype(np.float32)
+        
+        # Calcular la intensidad como la media de los canales R, G y B
+        intensidad = np.mean(escala, axis=2)
+        
+        # Redimensionar la intensidad al tamaño de la imagen original
+        intensidad = cv2.resize(intensidad, (anchura, altura), interpolation=cv2.INTER_LINEAR)
+        
+        # Evitar divisiones por cero en la normalización
+        min_val = np.min(intensidad)
+        max_val = np.max(intensidad)
+        
+        if max_val > min_val:  # Solo normalizar si hay diferencia
+            intensidad = (intensidad - min_val) / (max_val - min_val)
+        else:
+            intensidad = np.zeros_like(intensidad)  # Si la imagen es uniforme, asignar ceros
+        
+        mapas.append(intensidad)
+    
+    # Promediar los mapas de intensidad de todas las escalas
     mapa_final = sum(mapas) / len(mapas)
+    
     return mapa_final
+
 
 
 def calcular_mapa_color(escalas):
