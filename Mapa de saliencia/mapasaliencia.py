@@ -58,42 +58,59 @@ def calcular_mapa_intensidad(escalas):
 """
 
 def calcular_mapa_color(escalas):
-    mapas_color=[]
+    mapas_color = []
     for imagen in escalas:
-        imagen=imagen.astype(float)/255.0 #Se normaliza entre 0 y 1
+        imagen = imagen.astype(float) / 255.0  # Se normaliza entre 0 y 1
 
-        #Separamos los canales de color RGB
-        r,g,b=cv2.split(imagen)
+        # Separamos los canales de color RGB
+        r, g, b = cv2.split(imagen)
 
-        #Calcular R,G,B, Y con ls formulas
-        R=r-((g+b)/2)
-        G=g-((r+b)/2)
-        B=b-((r+g)/2)
-        Y=((r+g)/2) - ((abs(r-g))/2) -(b)
+        # Calcular R, G, B, Y con las fórmulas
+        R = r - ((g + b) / 2)
+        G = g - ((r + b) / 2)
+        B = b - ((r + g) / 2)
+        Y = ((r + g) / 2) - ((abs(r - g)) / 2) - (b)
 
-        #Normalizamos los valores a rango [0,1]
-        R=(R-np.min(R))/(np.max(R)-np.min(R))
-        G =(G-np.min(G))/(np.max(G)-np.min(G))
-        B = (B-np.min(B))/(np.max(B)-np.min(B))
-        Y = (Y-np.min(Y))/(np.max(Y)-np.min(Y))
+        # Normalizamos los valores a rango [0, 1]
+        R = (R - np.min(R)) / (np.max(R) - np.min(R))
+        G = (G - np.min(G)) / (np.max(G) - np.min(G))
+        B = (B - np.min(B)) / (np.max(B) - np.min(B))
+        Y = (Y - np.min(Y)) / (np.max(Y) - np.min(Y))
 
         # Combinar los mapas en una imagen
         mapa_color = np.stack((R, G, B), axis=-1)  # Concatenamos en el eje de canales
         mapas_color.append(mapa_color)  # Guardamos el mapa de color
 
-    # Mostrar el mapa de color resultante de cada escala
+    # Superponer las escalas (across-scale)
+    # Inicializamos la imagen combinada con la primera escala
+    mapa_completo = mapas_color[0].copy()
+
+    # Sumamos las demás escalas
+    for i in range(1, len(mapas_color)):
+        mapa_completo += mapas_color[i]  # Sumamos directamente
+
+    # Normalizamos el resultado para que los valores estén en [0, 1]
+    mapa_completo = (mapa_completo - np.min(mapa_completo)) / (np.max(mapa_completo) - np.min(mapa_completo))
+    mapa_completo_uint8 = np.uint8(mapa_completo * 255)  # Convertir a uint8
+    gris = cv2.cvtColor(mapa_completo_uint8, cv2.COLOR_RGB2GRAY)  # Convertir a grises
+
+    # Mostrar la imagen combinada en color y en escala de grises
     plt.figure(figsize=(12, 6))
-    titulos = ["Original", "1/2", "1/4", "1/8"]
-    
-    for i, (mapa, titulo) in enumerate(zip(mapas_color, titulos)):
-        plt.subplot(1, 4, i + 1)
-        plt.imshow(mapa)
-        plt.title(titulo)
-        plt.axis('off')
-    
+
+    plt.subplot(1, 2, 1)
+    plt.imshow(mapa_completo)
+    plt.title("Escalas combinadas (Color)")
+    plt.axis('off')
+
+    plt.subplot(1, 2, 2)
+    plt.imshow(gris, cmap='gray')
+    plt.title("Escalas combinadas (Grises)")
+    plt.axis('off')
+
     plt.show()
 
-    return mapas_color  
+    return mapas_color, mapa_completo, gris
+
 
 
 """
