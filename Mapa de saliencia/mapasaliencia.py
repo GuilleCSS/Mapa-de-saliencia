@@ -231,7 +231,7 @@ def main():
     #imagen = capturar_imagen()
     
     # Especificar el nombre de la imagen en la misma carpeta
-    nombre_imagen = "perro.jpg"  # Cambia "tu_imagen.jpg" por el nombre de tu archivo
+    nombre_imagen = "perro1.jpg"  # Cambia "tu_imagen.jpg" por el nombre de tu archivo
     
     # Cargar la imagen desde el archivo
     imagen = cv2.imread(nombre_imagen)
