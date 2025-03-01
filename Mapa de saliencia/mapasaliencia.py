@@ -55,45 +55,53 @@ def mostrar_escalas(escalas):
         escala_bgr = cv2.cvtColor(escala, cv2.COLOR_RGB2BGR)
         cv2.imshow(f"Escala {i + 1}", escala_bgr)  # Mostrar desde Escala 2
 
-def calcular_mapa_intensidad(escalas): 
+def calcular_mapa_intensidad(escalas):
     mapas = []
     
-    altura, anchura = escalas[0].shape[:2]  # Tamaño de la imagen original
+    # Tomamos el tamaño de la imagen original
+    altura, anchura = escalas[0].shape[:2]  # Imagen original
     
     for escala in escalas:
-        escala = escala.astype(np.float32)  # Convertir a flotante
+        # Convertir a flotante para evitar problemas en la división
+        escala = escala.astype(np.float32)
         
         # Calcular la intensidad como la media de los canales R, G y B
         intensidad = np.mean(escala, axis=2)
         
-        # Normalización
-        min_val, max_val = np.min(intensidad), np.max(intensidad)
-        if max_val > min_val:
-            intensidad = (intensidad - min_val) / (max_val - min_val)
-        else:
-            intensidad = np.zeros_like(intensidad)  # Si la imagen es uniforme
+        intensidad = (intensidad - np.min(intensidad)) / (np.max(intensidad) - np.min(intensidad))
         
-        # Redimensionamiento manual sin usar cv2.resize
-        if intensidad.shape[0] > 1 and intensidad.shape[1] > 1:
+        # Verificar si el tamaño es lo suficientemente grande para redimensionar
+        if intensidad.shape[0] <= 1 or intensidad.shape[1] <= 1:
+            print("Advertencia: Las dimensiones del mapa de intensidad son demasiado pequeñas para redimensionar.")
+            intensidad = np.zeros_like(intensidad)  # Asignar cero si no se puede redimensionar
+        else:
+            # Evitar que el paso del slice sea cero
             step_fila = max(intensidad.shape[0] // altura, 1)
             step_columna = max(intensidad.shape[1] // anchura, 1)
+            
+            # Redimensionar la intensidad al tamaño de la imagen original (Interpolación simple)
             intensidad = intensidad[::step_fila, ::step_columna]
         
-        # Normalización final para asegurar el rango [0,1] después del ajuste de tamaño
-        min_val, max_val = np.min(intensidad), np.max(intensidad)
-        if max_val > min_val:
+        # Evitar divisiones por cero en la normalización
+        min_val = np.min(intensidad)
+        max_val = np.max(intensidad)
+        
+        if max_val > min_val:  # Solo normalizar si hay diferencia
             intensidad = (intensidad - min_val) / (max_val - min_val)
         else:
-            intensidad = np.zeros_like(intensidad)
+            intensidad = np.zeros_like(intensidad)  # Si la imagen es uniforme, asignar ceros
+        
+        # Redimensionar intensidad a las dimensiones originales para que todas tengan el mismo tamaño
+        intensidad = cv2.resize(intensidad, (anchura, altura), interpolation=cv2.INTER_LINEAR)
         
         mapas.append(intensidad)
     
-    # Asegurar que haya exactamente 4 escalas
+    # Asegurarse de que haya exactamente 4 escalas
     if len(mapas) != 4:
         raise ValueError("Debe haber exactamente 4 escalas para calcular el mapa de intensidad.")
     
-    # Promediar los mapas de intensidad
-    mapa_final = np.mean(mapas, axis=0)
+    # Promediar los mapas de intensidad de todas las escalas
+    mapa_final = sum(mapas) / len(mapas)
     
     return mapa_final
 
@@ -239,7 +247,7 @@ def main():
     escalas = generar_escalas(imagen)
     
     # Mostrar las imágenes escaladas sin filtros (omitir la primera escala)
-    mostrar_escalas(escalas)
+    #mostrar_escalas(escalas)
     
     # Calcular los mapas de intensidad
     mapa_intensidad = calcular_mapa_intensidad(escalas)
