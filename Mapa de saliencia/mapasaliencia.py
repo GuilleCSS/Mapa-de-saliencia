@@ -2,34 +2,101 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-def cargar_imagen(ruta):
-    imagen = cv2.imread(ruta)
-    if imagen is None:
-        raise FileNotFoundError(f"Error: No se pudo cargar la imagen. Verifica la ruta: {ruta}")
-    return cv2.cvtColor(imagen, cv2.COLOR_BGR2RGB)
+def capturar_imagen():
+    cap=cv2.VideoCapture(0) #La camara 0 es la camra principal
+    if not cap.isOpened():
+        print("Error: No se pudo acceder a la camara")
+    print("Presiona 'Espacio' para capturas la imagen o 'Esc' para salir ")
+    while True:
+        ret,frame=cap.read()
+        if not ret:
+            print("Error al capturar la imagen")
+            break
+        cv2.imshow("Presiona espacio para capturar",frame)
+        
+        key=cv2.waitKey(1) & 0xFF
+        if key==32: #Espacio para capturar
+            imagen=cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
+            break
+        elif key==27: #Esc para salir
+            cap.release()
+            cv2.destroyAllWindows()
+            return None
+    cap.release()   
+    cv2.destroyAllWindows()
+    return imagen
+
+
 
 def redimensionar_imagen(imagen):
     escalas = [imagen,
                cv2.resize(imagen, (imagen.shape[1] // 2, imagen.shape[0] // 2)),
                cv2.resize(imagen, (imagen.shape[1] // 4, imagen.shape[0] // 4)),
                cv2.resize(imagen, (imagen.shape[1] // 8, imagen.shape[0] // 8))]
+    
     # Ajustamos todas las escalas al tamaño de la menor imagen
     min_height = min([escala.shape[0] for escala in escalas])
     min_width = min([escala.shape[1] for escala in escalas])
     escalas = [cv2.resize(escala, (min_width, min_height)) for escala in escalas]
     return escalas
 
+def visualizar_escalas(escalas):
+    plt.figure(figsize=(10,5))
+    titulos=["Original","1/2","1/4","1/8"]
+    for i,(escala, titulo) in enumerate(zip(escalas,titulos)):
+        plt.subplot(1,4,i+1)
+        plt.imshow(escala)
+        plt.title(titulo)
+        plt.axis('off')
+    plt.show()
+
+"""
 def calcular_mapa_intensidad(escalas):
     mapas = [np.mean(escala, axis=2) / 255.0 for escala in escalas]
     mapa_final = sum(mapas) / len(mapas)
     return mapa_final
+"""
 
 def calcular_mapa_color(escalas):
-    mapas_rg = [(escala[:, :, 0] - escala[:, :, 1]) / 255.0 for escala in escalas]
-    mapas_by = [((escala[:, :, 2] - (escala[:, :, 0] + escala[:, :, 1]) / 2)) / 255.0 for escala in escalas]
-    mapa_final = (sum(mapas_rg) + sum(mapas_by)) / (2 * len(escalas))
-    return mapa_final
+    mapas_color=[]
+    for imagen in escalas:
+        imagen=imagen.astype(float)/255.0 #Se normaliza entre 0 y 1
 
+        #Separamos los canales de color RGB
+        r,g,b=cv2.split(imagen)
+
+        #Calcular R,G,B, Y con ls formulas
+        R=r-((g+b)/2)
+        G=g-((r+b)/2)
+        B=b-((r+g)/2)
+        Y=((r+g)/2) - ((abs(r-g))/2) -(b)
+
+        #Normalizamos los valores a rango [0,1]
+        R=(R-np.min(R))/(np.max(R)-np.min(R))
+        G =(G-np.min(G))/(np.max(G)-np.min(G))
+        B = (B-np.min(B))/(np.max(B)-np.min(B))
+        Y = (Y-np.min(Y))/(np.max(Y)-np.min(Y))
+
+        # Combinar los mapas en una imagen
+        mapa_color = np.stack((R, G, B), axis=-1)  # Concatenamos en el eje de canales
+        mapas_color.append(mapa_color)  # Guardamos el mapa de color
+
+    # Mostrar el mapa de color resultante de cada escala
+    plt.figure(figsize=(12, 6))
+    titulos = ["Original", "1/2", "1/4", "1/8"]
+    
+    for i, (mapa, titulo) in enumerate(zip(mapas_color, titulos)):
+        plt.subplot(1, 4, i + 1)
+        plt.imshow(mapa)
+        plt.title(titulo)
+        plt.axis('off')
+    
+    plt.show()
+
+    return mapas_color  
+
+
+"""
 def calcular_mapa_orientacion(escalas):
     kernel_size = 31
     sigmas = [3, 5, 7]
@@ -46,11 +113,16 @@ def calcular_mapa_orientacion(escalas):
     
     mapa_final = sum(mapas) / len(mapas)
     return mapa_final
+"""
 
+"""
 def calcular_mapa_saliencia(mapa_intensidad, mapa_color, mapa_orientacion):
     mapa_final = (mapa_intensidad + mapa_color + mapa_orientacion) 
     return mapa_final
+"""
 
+
+"""
 def visualizar_mapas(mapas, titulos):
     plt.figure(figsize=(10, 5))
     for i, (mapa, titulo) in enumerate(zip(mapas, titulos)):
@@ -59,17 +131,11 @@ def visualizar_mapas(mapas, titulos):
         plt.title(titulo)
         plt.axis('off')
     plt.show()
+"""
 
 if __name__ == "__main__":
-    ruta_imagen = "C:/Users/angel/OneDrive/Documents/Inteligencia Artificial/QUINTO SEMESTRE/VISION ARTIFICIAL/PRIMER PARCIAL/Mapa de saliencia/perro.jpg"
-
-    imagen = cargar_imagen(ruta_imagen)
-    escalas = redimensionar_imagen(imagen)
-    
-    mapa_intensidad = calcular_mapa_intensidad(escalas)
-    mapa_color = calcular_mapa_color(escalas)
-    mapa_orientacion = calcular_mapa_orientacion(escalas)
-    mapa_saliencia = calcular_mapa_saliencia(mapa_intensidad, mapa_color, mapa_orientacion)
-    
-    visualizar_mapas([mapa_intensidad, mapa_color, mapa_orientacion, mapa_saliencia], 
-                     ["Mapa de Intensidad", "Mapa de Color", "Mapa de Orientación", "Mapa de Saliencia"])
+    imagen=capturar_imagen()
+    if imagen is not None:
+        escalas=redimensionar_imagen(imagen)
+        visualizar_escalas(escalas)
+        mapas_color=calcular_mapa_color(escalas)
