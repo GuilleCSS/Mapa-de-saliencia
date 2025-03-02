@@ -244,8 +244,10 @@ def calcular_mapa_saliencia(mapa_intensidad, mapa_color, mapa_orientacion):
     return mapa_saliencia_uint8
 
 def main():
-    #imagen = capturar_imagen()
+    #Función para capturar imagen con la cámara de la laptop
+    imagen = capturar_imagen()
     
+    """""
     # Especificar el nombre de la imagen en la misma carpeta
     nombre_imagen = "perro.jpg"  # Cambia "tu_imagen.jpg" por el nombre de tu archivo
     
@@ -259,6 +261,7 @@ def main():
     
     # Convertir la imagen de BGR a RGB (opcional, dependiendo de tu flujo de trabajo)
     imagen = cv2.cvtColor(imagen, cv2.COLOR_BGR2RGB)
+    """
     
     escalas = generar_escalas(imagen)
     
