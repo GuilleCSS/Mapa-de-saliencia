@@ -1,6 +1,10 @@
+#Equipo 
+#Angel Miguel Sánchez Pérez
+#Guillermo Carreto Sánchez
+#Miguel Alejandro Flores Sotelo 
+
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 
 def capturar_imagen():
     cap = cv2.VideoCapture(0)  # La cámara 0 es la cámara principal
@@ -44,7 +48,7 @@ def redimensionar_manual(img, factor):
 
 def generar_escalas(imagen):
     escalas = [imagen]
-    factores = [2, 4, 8]
+    factores = [2,4,8]
     for factor in factores:
         escalas.append(redimensionar_manual(imagen, factor))
     return escalas
@@ -154,60 +158,75 @@ def calcular_mapa_color(escalas):
     
     return mapa_completo_uint8
 
-def mapa_orientacion(img, escalas, ksize=31, sigma=5, lambd=10, gamma=0.5):
+def mapa_orientacion(escalas, ksize=31, sigma=5, lambd=10, gamma=0.5):
     def convolucion_manual(img, kernel):
         filas, columnas = img.shape  # Ahora img es 2D (escala de grises)
         k_filas, k_columnas = kernel.shape
         pad_filas, pad_columnas = k_filas // 2, k_columnas // 2
-        
+
         img_padded = np.pad(img, ((pad_filas, pad_filas), (pad_columnas, pad_columnas)), mode='constant')
         resultado = np.zeros_like(img, dtype=np.float32)
-        
+
         for i in range(filas):
             for j in range(columnas):
                 region = img_padded[i:i+k_filas, j:j+k_columnas]
                 resultado[i, j] = np.sum(region * kernel)
-        
+
         return resultado
 
     def normalizar_manual(img):
         min_val = np.min(img)
         max_val = np.max(img)
-        
+
         if max_val - min_val == 0:
             return np.zeros_like(img, dtype=np.uint8)
-        
+
         img_norm = (img - min_val) * (255.0 / (max_val - min_val))
         return img_norm.astype(np.uint8)
 
     direcciones = [0, 45, 90, 135]
     respuestas_por_escala = []
-    
+
     for escala in escalas:
         # Convertir la imagen a escala de grises
         escala_gris = cv2.cvtColor(escala, cv2.COLOR_RGB2GRAY)
         respuestas = []
+        respuestas_x = []
+        respuestas_y = []
+        
         for theta in direcciones:
             theta_rad = np.deg2rad(theta)
             kernel = cv2.getGaborKernel((ksize, ksize), sigma, theta_rad, lambd, gamma, 0, ktype=cv2.CV_32F)
             respuesta = convolucion_manual(escala_gris, kernel)
-            respuestas.append(np.abs(respuesta))  # Calcular la magnitud de la respuesta
-        respuestas_por_escala.append(respuestas)
-    
-    mapa_orientacion = np.zeros_like(escalas[0][:, :, 0], dtype=np.float32)  # Usar solo una capa para el mapa final
+            respuestas.append(respuesta)
+
+            # Separar respuestas en direcciones perpendiculares (0° y 90° / 45° y 135°)
+            if theta in [0, 90]:
+                respuestas_x.append(respuesta)
+            else:
+                respuestas_y.append(respuesta)
+        
+        # Calcular la magnitud combinada
+        magnitud_respuesta = np.sqrt(np.square(respuestas_x[0]) + np.square(respuestas_x[1])) + \
+                             np.sqrt(np.square(respuestas_y[0]) + np.square(respuestas_y[1]))
+
+        respuestas_por_escala.append(magnitud_respuesta)
+
+    mapa_orientacion = np.zeros_like(escalas[0][:, :, 0], dtype=np.float32)
+
     for idx, respuestas in enumerate(respuestas_por_escala):
-        suma_respuestas = sum(respuestas)  # Sumar las respuestas de los filtros
+        suma_respuestas = respuestas  # Ya está calculada la magnitud combinada
         escala_ampliada = np.zeros_like(escalas[0][:, :, 0], dtype=np.float32)
         factor = 2 ** idx
         for i in range(suma_respuestas.shape[0]):
             for j in range(suma_respuestas.shape[1]):
                 escala_ampliada[i * factor:(i + 1) * factor, j * factor:(j + 1) * factor] = suma_respuestas[i, j]
-        
+
         mapa_orientacion += escala_ampliada
-    
+
     # Normalizar el mapa de orientación
     mapa_orientacion = normalizar_manual(mapa_orientacion)
-    
+
     return mapa_orientacion
 
 def calcular_mapa_saliencia(mapa_intensidad, mapa_color, mapa_orientacion):
@@ -217,10 +236,7 @@ def calcular_mapa_saliencia(mapa_intensidad, mapa_color, mapa_orientacion):
     mapa_orientacion = (mapa_orientacion - np.min(mapa_orientacion)) / (np.max(mapa_orientacion) - np.min(mapa_orientacion))
     
     # 2. Sumar los mapas ponderando cada característica de manera equitativa
-    mapa_saliencia = (0.8*mapa_intensidad + 0.1*mapa_color + 0.8*mapa_orientacion) / 3.0
-    
-    # 3. Normalizar el mapa de saliencia final al rango [0, 1]
-    #mapa_saliencia = (mapa_saliencia - np.min(mapa_saliencia)) / (np.max(mapa_saliencia) - np.min(mapa_saliencia))
+    mapa_saliencia = (0.2*mapa_intensidad + 0.2*mapa_color + 0.6*mapa_orientacion)
     
     # Convertir el mapa de saliencia a uint8 para visualización
     mapa_saliencia_uint8 = np.uint8(mapa_saliencia * 255)
@@ -231,7 +247,7 @@ def main():
     #imagen = capturar_imagen()
     
     # Especificar el nombre de la imagen en la misma carpeta
-    nombre_imagen = "perro1.jpg"  # Cambia "tu_imagen.jpg" por el nombre de tu archivo
+    nombre_imagen = "perro.jpg"  # Cambia "tu_imagen.jpg" por el nombre de tu archivo
     
     # Cargar la imagen desde el archivo
     imagen = cv2.imread(nombre_imagen)
@@ -263,7 +279,7 @@ def main():
     mapa_color = mapa_color_resultado
     
     # Calcular el mapa de orientación
-    mapa_orientacion_resultado = mapa_orientacion(imagen, escalas)
+    mapa_orientacion_resultado = mapa_orientacion(escalas)
     if mapa_orientacion_resultado is None:
         print("Error al calcular el mapa de orientación.")
         return
@@ -273,9 +289,9 @@ def main():
     
     # Mostrar todas las imágenes en ventanas separadas
     #cv2.imshow("Imagen Original", cv2.cvtColor(imagen, cv2.COLOR_RGB2BGR))
-    #cv2.imshow("Mapa de Intensidad", mapa_intensidad)
-    #cv2.imshow("Mapa de Color", mapa_color)
-    #cv2.imshow("Mapa de Orientacion", mapa_orientacion_resultado)
+    cv2.imshow("Mapa de Intensidad", mapa_intensidad)
+    cv2.imshow("Mapa de Color", mapa_color)
+    cv2.imshow("Mapa de Orientacion", mapa_orientacion_resultado)
     cv2.imshow("Mapa de Saliencia", mapa_saliencia)
     
     # Esperar a que el usuario presione una tecla para cerrar las ventanas
