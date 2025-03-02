@@ -32,17 +32,15 @@ def capturar_imagen():
     return imagen
 
 def redimensionar_manual(img, factor):
-    filas, columnas = img.shape[:2]  # Obtener las dimensiones originales
-    new_filas, new_columnas = filas // factor, columnas // factor  # Calcular las nuevas dimensiones
+    filas, columnas = img.shape[:2]
+    new_filas, new_columnas = filas // factor, columnas // factor
     
-    # Crear una nueva imagen de las dimensiones reducidas
-    img_reducida = np.zeros((new_filas, new_columnas, img.shape[2]), dtype=img.dtype)
-    
-    # Realizar el escalamiento tomando píxeles con el factor de submuestreo
-    for i in range(new_filas):
-        for j in range(new_columnas):
-            # Tomar los píxeles correspondientes con el factor de escala
-            img_reducida[i, j] = img[i * factor, j * factor]
+    # Cambiar a interpolación por área (mejor para reducción)
+    img_reducida = cv2.resize(
+        img, 
+        (new_columnas, new_filas), 
+        interpolation=cv2.INTER_AREA  # Más efectivo para reducción
+    )
     
     return img_reducida
 
@@ -93,7 +91,7 @@ def calcular_mapa_intensidad(escalas):
         if max_val > min_val:  # Solo normalizar si hay diferencia
             intensidad = (intensidad - min_val) / (max_val - min_val)
         else:
-            intensidad = np.zeros_like(intensidad)  # Si la imagen es uniforme, asignar ceros
+            intensidad = np.power(intensidad, 0.8)  # Si la imagen es uniforme, asignar ceros
         
         # Redimensionar intensidad a las dimensiones originales para que todas tengan el mismo tamaño
         intensidad = cv2.resize(intensidad, (anchura, altura), interpolation=cv2.INTER_LINEAR)
@@ -125,10 +123,10 @@ def calcular_mapa_color(escalas):
         b = imagen[:, :, 2]
         
         # Calcular R, G, B, Y usando las fórmulas proporcionadas
-        R = r - ((g + b) / 2)
-        G = g - ((r + b) / 2)
-        B = b - ((r + g) / 2)
-        Y = ((r + g) / 2) - ((np.abs(r - g)) / 2) - b
+        R = r - 0.7*g - 0.7*b  # Mayor peso a rojo
+        G = g - 0.7*r - 0.7*b  # Mayor peso a verde
+        B = b - 0.7*r - 0.7*g  # Mayor peso a azul
+        Y = 0.5*(r + g) - 0.5*np.abs(r - g) - 0.7*b 
         
         # Normalizar los mapas R, G, B, Y al rango [0, 1]
         R = (R - np.min(R)) / (np.max(R) - np.min(R)) if np.max(R) != np.min(R) else np.zeros_like(R)
@@ -137,7 +135,7 @@ def calcular_mapa_color(escalas):
         Y = (Y - np.min(Y)) / (np.max(Y) - np.min(Y)) if np.max(Y) != np.min(Y) else np.zeros_like(Y)
         
         # Combinar los mapas R, G, B, Y linealmente (promedio)
-        mapa_color = (R + G + B + Y) / 4.0
+        mapa_color = np.maximum(np.maximum(R, G), np.maximum(B, Y))
         
         # Redimensionar el mapa de color al tamaño de la imagen original
         mapa_color = cv2.resize(mapa_color, (anchura, altura), interpolation=cv2.INTER_LINEAR)
@@ -158,7 +156,7 @@ def calcular_mapa_color(escalas):
     
     return mapa_completo_uint8
 
-def mapa_orientacion(escalas, ksize=31, sigma=5, lambd=10, gamma=0.5):
+def mapa_orientacion(escalas, ksize=45, sigma=9, lambd=15, gamma=0.25):
     def convolucion_manual(img, kernel):
         filas, columnas = img.shape  # Ahora img es 2D (escala de grises)
         k_filas, k_columnas = kernel.shape
@@ -235,10 +233,17 @@ def calcular_mapa_saliencia(mapa_intensidad, mapa_color, mapa_orientacion):
     mapa_color = (mapa_color - np.min(mapa_color)) / (np.max(mapa_color) - np.min(mapa_color))
     mapa_orientacion = (mapa_orientacion - np.min(mapa_orientacion)) / (np.max(mapa_orientacion) - np.min(mapa_orientacion))
     
-    # 2. Sumar los mapas ponderando cada característica de manera equitativa
-    mapa_saliencia = (0.2*mapa_intensidad + 0.2*mapa_color + 0.6*mapa_orientacion)
+    # 2. Sumar los mapas ponderando cada característica
+    mapa_saliencia = (0.25*mapa_intensidad + 0.35*mapa_color + 0.4*mapa_orientacion)
     
-    # Convertir el mapa de saliencia a uint8 para visualización
+    # Convertir a float32 para el filtro bilateral
+    mapa_saliencia = mapa_saliencia.astype(np.float32)
+    
+    # Aplicar suavizado adaptativo (ahora compatible con float32)
+    mapa_saliencia = cv2.bilateralFilter(mapa_saliencia, 9, 75, 75)
+    
+    # Normalizar y convertir a uint8
+    mapa_saliencia = (mapa_saliencia - np.min(mapa_saliencia)) / (np.max(mapa_saliencia) - np.min(mapa_saliencia))
     mapa_saliencia_uint8 = np.uint8(mapa_saliencia * 255)
     
     return mapa_saliencia_uint8
